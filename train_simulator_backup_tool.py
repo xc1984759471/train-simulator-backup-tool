@@ -111,6 +111,27 @@ class XMLParser:
     """XML解析器，用于解析RouteProperties.xml和ScenarioProperties.xml"""
     
     @staticmethod
+    def _is_chinese_language(lang_code: str) -> bool:
+        """判断是否为中文语言代码"""
+        if not lang_code:
+            return False
+        # 匹配所有中文变体：zh, zh-cn, zh-tw, zh-hk, zh-sg等
+        return lang_code.lower().startswith('zh') or lang_code.lower() in ['chinese', 'zhongwen']
+    
+    @staticmethod
+    def _matches_language(lang_code: str, target_language: str) -> bool:
+        """判断语言代码是否匹配目标语言"""
+        if not lang_code or not target_language:
+            return False
+        
+        # 如果目标语言是中文，匹配所有中文变体
+        if target_language.lower() == 'zh':
+            return XMLParser._is_chinese_language(lang_code)
+        
+        # 其他语言精确匹配
+        return lang_code.lower() == target_language.lower()
+
+    @staticmethod
     def parse_display_name(xml_file_path: str, language: str = "zh") -> str:
         """解析DisplayName标签，获取显示名称"""
         try:
@@ -139,7 +160,7 @@ class XMLParser:
                 print(f"在 {xml_file_path} 中未找到Localisation-cUserLocalisedString节点")
                 return ""
             
-            # 首先尝试Other语言
+            # 首先尝试Other语言 - 支持所有中文变体
             other_node = localisation_node.find('.//Other')
             if other_node is not None:
                 # 查找语言对
@@ -148,7 +169,7 @@ class XMLParser:
                     string_node = string_pair.find('.//String')
                     
                     if (lang_node is not None and string_node is not None and
-                        lang_node.text == language and string_node.text):
+                        string_node.text and XMLParser._matches_language(lang_node.text, language)):
                         return string_node.text
             
             # 如果Other中没有找到，尝试其他语言
