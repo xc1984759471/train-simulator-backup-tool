@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Train Simulator Classic 存档备份管理工具
+作者: MiniMax Agent
+版本: 1.0.0
+"""
 
 import os
 import sys
@@ -311,15 +316,8 @@ class TrainSimulatorBackupTool:
             backup_file = f"CurrentSave-{timestamp}.bin"
             backup_path = os.path.join(backup_dir, backup_file)
             
-            # 复制存档文件
+            # 复制文件
             shutil.copy2(save_file, backup_path)
-            
-            # 复制MD5校验文件（如果存在）
-            md5_file = os.path.join(scenario_path, "CurrentSave.bin.MD5")
-            if os.path.exists(md5_file):
-                backup_md5_path = os.path.join(backup_dir, f"CurrentSave-{timestamp}.bin.MD5")
-                shutil.copy2(md5_file, backup_md5_path)
-            
             return True
             
         except Exception as e:
@@ -337,14 +335,6 @@ class TrainSimulatorBackupTool:
             
             # 复制备份文件覆盖原存档
             shutil.copy2(backup_path, save_file)
-            
-            # 还原MD5校验文件（如果存在）
-            md5_filename = backup_filename + ".MD5"
-            backup_md5_path = os.path.join(scenario_path, self.backup_dir_name, md5_filename)
-            if os.path.exists(backup_md5_path):
-                original_md5_file = os.path.join(scenario_path, "CurrentSave.bin.MD5")
-                shutil.copy2(backup_md5_path, original_md5_file)
-            
             return True
             
         except Exception as e:
@@ -355,21 +345,10 @@ class TrainSimulatorBackupTool:
         """删除备份"""
         try:
             backup_path = os.path.join(scenario_path, self.backup_dir_name, backup_filename)
-            deleted = False
-            
-            # 删除存档文件
             if os.path.exists(backup_path):
                 os.remove(backup_path)
-                deleted = True
-            
-            # 删除对应的MD5校验文件
-            md5_filename = backup_filename + ".MD5"
-            backup_md5_path = os.path.join(scenario_path, self.backup_dir_name, md5_filename)
-            if os.path.exists(backup_md5_path):
-                os.remove(backup_md5_path)
-                deleted = True
-            
-            return deleted
+                return True
+            return False
             
         except Exception as e:
             print(f"删除备份失败: {e}")
@@ -382,15 +361,12 @@ class TrainSimulatorBackupTool:
             return []
         
         backups = []
-        backup_sets = set()  # 用于跟踪已处理的备份集
         try:
             for filename in os.listdir(backup_dir):
                 if filename.startswith("CurrentSave-") and filename.endswith(".bin"):
-                    # 提取备份集标识（移除.bin后缀）
-                    backup_id = filename[:-4]  # 移除.bin
-                    if backup_id not in backup_sets:
-                        backup_sets.add(backup_id)
-                        backups.append(backup_id)
+                    # 移除后缀显示
+                    display_name = filename[:-4]  # 移除.bin
+                    backups.append(display_name)
             backups.sort(reverse=True)  # 最新的在前面
         except Exception as e:
             print(f"列出备份失败: {e}")
