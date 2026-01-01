@@ -735,7 +735,7 @@ if PYQT_VERSION in [5, 6]:
             save_file = os.path.join(scenario_path, "CurrentSave.bin")
             
             if not os.path.exists(save_file):
-                QMessageBox.warning(self, "警告", "未找到CurrentSave.bin文件！")
+                QMessageBox.warning(self, "警告", "未找到CurrentSave.bin文件！\n您需要在游戏中先按F2或\"暂停菜单\"中的\"保存\"选项保存存档。")
                 return
             
             if self.tool.create_backup(scenario_path):

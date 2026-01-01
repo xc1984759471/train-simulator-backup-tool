@@ -1,3 +1,5 @@
+中文 | [English](./README.en.md)
+
 # Train Simulator Classic 存档备份管理工具
 
 一个专为DTG Train Simulator Classic（火车模拟器经典版）设计的存档备份管理工具，解决Train Simulator Classic游戏只能在同一个场景下覆盖备份存档的问题，帮助玩家轻松备份、还原和管理游戏存档。
