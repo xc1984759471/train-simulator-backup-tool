@@ -77,37 +77,6 @@
 - 备份文件按创建时间倒序排列（最新的在前面）
 - 备份文件可以安全删除，不影响游戏正常存档
 
-## 技术实现
-
-### 核心组件
-
-1. **ConfigManager** - 配置文件管理
-
-   - 保存游戏路径设置
-   - 持久化用户偏好
-2. **XMLParser** - XML解析器
-
-   - 解析RouteProperties.xml和ScenarioProperties.xml
-   - 支持多语言显示名称解析
-   - 智能回退机制
-3. **TrainSimulatorBackupTool** - 核心业务逻辑
-
-   - 自动检测RailWorks路径
-   - 内容扫描和解析
-   - 备份创建、还原、删除操作
-4. **GUI界面** - 图形用户界面
-
-   - 基于PyQt5/PyQt6的现代化界面
-   - 响应式布局设计
-   - 完整的用户交互流程
-
-### 兼容性支持
-
-- **Python版本**: 3.10 - 3.14
-- **GUI库**: PyQt5、PyQt6、GTK3
-- **操作系统**: Windows（主要支持）
-- **游戏版本**: Train Simulator Classic Steam版
-
 ## 故障排除
 
 ### 常见问题
