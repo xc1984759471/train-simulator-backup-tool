@@ -1,0 +1,19 @@
+# Train Simulator Classic 存档备份管理工具依赖
+# 支持Python 3.10-3.14
+
+# GUI库 - 选择其中一个安装
+PyQt5>=5.15.9
+# PyQt6>=6.4.0
+# PyGObject>=3.42.0; sys_platform == "win32"
+
+# XML处理（Python标准库已包含xml.etree.ElementTree）
+# 无需额外安装
+
+# Windows注册表访问
+pywin32>=306; sys_platform == "win32"
+
+# 可选：更好的XML处理
+lxml>=4.9.0
+
+# 打包工具
+pyinstaller>=5.0.0
