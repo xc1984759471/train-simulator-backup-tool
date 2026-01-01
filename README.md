@@ -1,29 +1,14 @@
 # Train Simulator Classic 存档备份管理工具
 
-一个专为Train Simulator Classic（火车模拟器经典版）设计的存档备份管理工具，帮助玩家轻松备份、还原和管理游戏存档。
+一个专为DTG Train Simulator Classic（火车模拟器经典版）设计的存档备份管理工具，解决Train Simulator Classic游戏只能在同一个场景下覆盖备份存档的问题，帮助玩家轻松备份、还原和管理游戏存档。
 
-## 功能特点
-
-- 🔍 **自动检测游戏路径** - 支持Steam版本的默认安装路径
-- 📁 **智能内容扫描** - 自动解析XML文件获取路线和场景的中文名称
-- 💾 **一键备份** - 快速创建带时间戳的存档备份
-- 🔄 **安全还原** - 支持备份还原，带确认提示防止误操作
-- 🗑️ **备份管理** - 支持删除不需要的备份文件
-- 🎨 **图形界面** - 简洁直观的GUI操作界面
-- ⚙️ **配置保存** - 自动保存设置，无需重复配置
-
-## 系统要求
-
-- **操作系统**: Windows 7/8/10/11
-- **Python版本**: 3.10 - 3.14
-- **Train Simulator Classic**: 已安装的Steam版本
 
 ## 安装方式
 
 ### 方式一：使用预编译可执行文件（推荐）
 
-1. 下载最新的可执行文件 `TrainSimulatorBackup.exe`
-2. 直接运行，无需安装Python环境
+1. 从Releases下载最新的可执行文件 `TrainSimulatorBackup.exe`
+2. 直接从源码运行，需安装Python环境
 
 ### 方式二：从源码运行
 
@@ -168,28 +153,6 @@
 2. 确保备份文件与当前游戏版本兼容
 3. 检查游戏目录权限
 
-### 日志和调试
-
-程序会在控制台输出详细的操作日志，包括：
-- 路径检测结果
-- XML解析过程
-- 文件操作状态
-- 错误信息
-
-如果遇到问题，请查看控制台输出获取详细信息。
-
-## 开发信息
-
-### 项目结构
-```
-train-simulator-backup-tool/
-├── train_simulator_backup_tool.py  # 主程序文件
-├── requirements.txt                # 依赖文件
-├── setup.py                       # 安装脚本
-├── build_exe.py                   # PyInstaller打包脚本
-└── README.md                      # 说明文档
-```
-
 ### 主要依赖
 - **PyQt5/PyQt6**: GUI框架
 - **xml.etree.ElementTree**: XML解析（Python标准库）
@@ -199,34 +162,6 @@ train-simulator-backup-tool/
 ### 许可证
 本项目采用MIT许可证，详见LICENSE文件。
 
-## 更新日志
 
-### v1.0.0 (2025-01-01)
-- 初始版本发布
-- 支持基本的备份、还原、删除功能
-- 实现自动路径检测和XML解析
-- 提供图形化操作界面
-
-## 贡献指南
-
-欢迎提交Issue和Pull Request来改进这个工具！
-
-### 开发环境设置
-1. 克隆项目仓库
-2. 安装开发依赖: `pip install -r requirements.txt`
-3. 运行程序: `python train_simulator_backup_tool.py`
-
-### 代码规范
-- 遵循PEP 8代码风格
-- 添加必要的注释和文档字符串
-- 确保向后兼容性
-
-## 联系方式
-
-- 项目维护者: MiniMax Agent
-- 邮箱: agent@minimax.chat
-- GitHub: https://github.com/minimax/train-simulator-backup-tool
-
----
-
-**免责声明**: 本工具仅用于个人学习和备份目的，请遵守相关游戏的使用条款和版权规定。
+### 免责声明
+本工具仅用于个人学习和备份目的，请遵守相关游戏的使用条款和版权规定。部分源代码使用AI编写，已经过本人审查和修正。
