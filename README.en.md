@@ -77,37 +77,6 @@ A save backup management tool specifically designed for DTG Train Simulator Clas
 - Backup files are sorted by creation time in descending order (newest first)
 - Backup files can be safely deleted without affecting normal game saves
 
-## Technical Implementation
-
-### Core Components
-
-1. **ConfigManager** - Configuration File Management
-
-   - Save game path settings
-   - Persist user preferences
-2. **XMLParser** - XML Parser
-
-   - Parse RouteProperties.xml and ScenarioProperties.xml
-   - Support multilingual display name parsing
-   - Intelligent fallback mechanism
-3. **TrainSimulatorBackupTool** - Core Business Logic
-
-   - Auto-detect RailWorks path
-   - Content scanning and parsing
-   - Backup creation, restoration, and deletion operations
-4. **GUI Interface** - Graphical User Interface
-
-   - Modern interface based on PyQt5/PyQt6
-   - Responsive layout design
-   - Complete user interaction workflow
-
-### Compatibility Support
-
-- **Python Version**: 3.10 - 3.14
-- **GUI Library**: PyQt5, PyQt6, GTK3
-- **Operating System**: Windows (Primary Support)
-- **Game Version**: Train Simulator Classic Steam Edition
-
 ## Troubleshooting
 
 ### Common Issues
