@@ -316,21 +316,36 @@ class TrainSimulatorBackupTool:
             print(f"扫描内容失败: {e}")
             return False
     
-    def create_backup(self, scenario_path: str) -> bool:
-        """创建存档备份"""
+    def create_backup(self, scenario_path: str, custom_filename: str = None) -> tuple[bool, str]:
+        """创建存档备份
+        Returns:
+            (success: bool, error_message: str)
+        """
         try:
             save_file = os.path.join(scenario_path, "CurrentSave.bin")
             if not os.path.exists(save_file):
-                return False
+                return False, "未找到CurrentSave.bin文件"
             
             backup_dir = os.path.join(scenario_path, self.backup_dir_name)
             if not os.path.exists(backup_dir):
                 os.makedirs(backup_dir)
             
-            # 生成备份文件名
-            timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            backup_file = f"CurrentSave-{timestamp}.bin"
+            # 使用自定义文件名或生成默认文件名
+            if custom_filename:
+                # 确保文件名以.bin结尾
+                if not custom_filename.endswith('.bin'):
+                    custom_filename += '.bin'
+                backup_file = custom_filename
+            else:
+                # 生成默认文件名
+                timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+                backup_file = f"CurrentSave-{timestamp}.bin"
+            
             backup_path = os.path.join(backup_dir, backup_file)
+            
+            # 检查文件是否已存在
+            if os.path.exists(backup_path):
+                return False, f"备份文件 '{backup_file}' 已存在，请使用不同的名称"
             
             # 复制存档文件
             shutil.copy2(save_file, backup_path)
@@ -338,14 +353,15 @@ class TrainSimulatorBackupTool:
             # 复制MD5校验文件（如果存在）
             md5_file = os.path.join(scenario_path, "CurrentSave.bin.MD5")
             if os.path.exists(md5_file):
-                backup_md5_path = os.path.join(backup_dir, f"CurrentSave-{timestamp}.bin.MD5")
+                # MD5文件名与存档文件名保持一致（只改扩展名）
+                md5_backup_file = backup_file + ".MD5" if not backup_file.endswith('.MD5') else backup_file
+                backup_md5_path = os.path.join(backup_dir, md5_backup_file)
                 shutil.copy2(md5_file, backup_md5_path)
             
-            return True
+            return True, ""
             
         except Exception as e:
-            print(f"创建备份失败: {e}")
-            return False
+            return False, f"创建备份失败: {e}"
     
     def restore_backup(self, scenario_path: str, backup_filename: str) -> bool:
         """还原存档备份"""
@@ -406,7 +422,8 @@ class TrainSimulatorBackupTool:
         backup_sets = set()  # 用于跟踪已处理的备份集
         try:
             for filename in os.listdir(backup_dir):
-                if filename.startswith("CurrentSave-") and filename.endswith(".bin"):
+                # 识别任何以.bin结尾的文件作为备份文件
+                if filename.endswith(".bin") and not filename.endswith(".bin.MD5"):
                     # 提取备份集标识（移除.bin后缀）
                     backup_id = filename[:-4]  # 移除.bin
                     if backup_id not in backup_sets:
@@ -660,7 +677,9 @@ if PYQT_VERSION in [5, 6]:
             backups = self.tool.list_backups(scenario_path)
             for backup in backups:
                 item = QListWidgetItem(backup)
-                item.setData(Qt.UserRole, backup + ".bin")  # 存储完整文件名
+                # 存储完整文件名（添加.bin后缀）
+                full_filename = backup if backup.endswith(".bin") else backup + ".bin"
+                item.setData(Qt.UserRole, full_filename)
                 self.backup_list.addItem(item)
             
             # 连接选择变化信号
@@ -783,11 +802,54 @@ if PYQT_VERSION in [5, 6]:
                 QMessageBox.warning(self, "警告", "未找到CurrentSave.bin文件！\n您需要在游戏中先按F2或\"暂停菜单\"中的\"保存\"选项保存存档。")
                 return
             
-            if self.tool.create_backup(scenario_path):
-                QMessageBox.information(self, "成功", "备份创建成功！")
-                self.update_backup_list(scenario_path)
+            # 生成默认文件名
+            timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            default_filename = f"CurrentSave-{timestamp}"
+            
+            # 弹出重命名对话框
+            dialog = QDialog(self)
+            dialog.setWindowTitle("重命名备份")
+            dialog.setModal(True)
+            dialog.resize(400, 150)
+            
+            layout = QVBoxLayout(dialog)
+            
+            # 标签
+            label = QLabel("请输入备份名称:")
+            layout.addWidget(label)
+            
+            # 输入框
+            input_field = QLineEdit(default_filename)
+            layout.addWidget(input_field)
+            
+            # 按钮
+            button_layout = QHBoxLayout()
+            ok_button = QPushButton("确定")
+            cancel_button = QPushButton("取消")
+            button_layout.addWidget(ok_button)
+            button_layout.addWidget(cancel_button)
+            layout.addLayout(button_layout)
+            
+            # 连接按钮信号
+            ok_button.clicked.connect(dialog.accept)
+            cancel_button.clicked.connect(dialog.reject)
+            
+            # 显示对话框
+            if dialog.exec_() == QDialog.Accepted:
+                custom_filename = input_field.text().strip()
+                if custom_filename:
+                    success, error_message = self.tool.create_backup(scenario_path, custom_filename)
+                    if success:
+                        self.update_backup_list(scenario_path)
+                        self.statusBar().showMessage(f"备份 '{custom_filename}' 创建成功")
+                    else:
+                        QMessageBox.warning(self, "失败", error_message)
+                        self.statusBar().showMessage("备份创建失败")
+                else:
+                    QMessageBox.warning(self, "警告", "备份名称不能为空！")
             else:
-                QMessageBox.warning(self, "失败", "备份创建失败！")
+                # 用户取消操作
+                self.statusBar().showMessage("备份创建已取消")
         
         def restore_backup(self):
             """还原备份"""
@@ -815,7 +877,7 @@ if PYQT_VERSION in [5, 6]:
             
             if reply == QMessageBox.Yes:
                 if self.tool.restore_backup(scenario_path, backup_filename):
-                    QMessageBox.information(self, "成功", "备份还原成功！")
+                    self.statusBar().showMessage("备份还原成功")
                 else:
                     QMessageBox.warning(self, "失败", "备份还原失败！")
         
@@ -846,8 +908,8 @@ if PYQT_VERSION in [5, 6]:
             
             if reply == QMessageBox.Yes:
                 if self.tool.delete_backup(scenario_path, backup_filename):
-                    QMessageBox.information(self, "成功", "备份删除成功！")
                     self.update_backup_list(scenario_path)
+                    self.statusBar().showMessage(f"备份 '{backup_display}' 删除成功")
                 else:
                     QMessageBox.warning(self, "失败", "备份删除失败！")
 
