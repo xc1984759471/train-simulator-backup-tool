@@ -954,7 +954,47 @@ elif PYGTK_AVAILABLE:
 
 def main():
     """主函数"""
+    # 启用Windows高分屏支持
+    # 通过环境变量启用高分屏缩放
+    import os
+    import sys
+    
+    # 设置环境变量启用高分屏缩放
+    os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '1'
+    os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '1'
+    
+    # 对于PyQt5，额外设置高分屏属性（必须在创建QApplication之前）
+    if PYQT_VERSION == 5:
+        try:
+            from PyQt5.QtCore import Qt
+            # 使用try/except避免版本兼容性问题
+            if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+                QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+            if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+                QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
+        except (ImportError, AttributeError):
+            pass
+    
+    # 创建应用程序
     app = QApplication(sys.argv)
+    
+    # 对于Qt 5.14+和PyQt6，设置高分屏缩放策略以获得更好的适配效果
+    try:
+        if PYQT_VERSION == 5:
+            from PyQt5.QtGui import QGuiApplication
+            if hasattr(QGuiApplication, 'setHighDpiScaleFactorRoundingPolicy'):
+                QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+                    Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+                )
+        else:  # PyQt6
+            from PyQt6.QtGui import QGuiApplication
+            if hasattr(QGuiApplication, 'setHighDpiScaleFactorRoundingPolicy'):
+                QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+                    Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+                )
+    except (ImportError, AttributeError) as e:
+        # 忽略版本兼容性问题，继续运行
+        pass
     
     # 设置应用程序信息
     if PYQT_VERSION == 5:
