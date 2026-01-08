@@ -107,8 +107,89 @@ class ConfigManager:
         self.save_config()
 
 
-class XMLParser:
-    """XML解析器，用于解析RouteProperties.xml和ScenarioProperties.xml"""
+class RobustXMLParser:
+    """健壮XML解析器 - 在解析时动态过滤无效字符"""
+    
+    @staticmethod
+    def _filter_invalid_chars(text: str) -> str:
+        """过滤XML文本中的无效字符，保持原文本不变"""
+        if not text:
+            return text
+        
+        # 使用正则表达式扩展过滤范围，包括私有区Unicode字符
+        # 移除以下字符范围：
+        # - XML控制字符：0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F, 0x7F-0x84, 0x86-0x9F
+        # - 私有区字符：0xFFF0-0xFFFF（特殊用途区域）
+        # - 代理对字符：0xFF80-0xFFBF（高代理和低代理）
+        # - BOM和其他特殊字符：0xFFFE, 0xFFFF
+        # - 更多私有区字符：0xE000-0xF8FF（私有使用区域中的问题字符）
+        
+        # 保留：0x09(TAB), 0x0A(LF), 0x0D(CR), 0x20-0xD7FF, 0xE000-0xF8FF(大部分), 0xF900-0xFFEF, 0x10000-0x10FFFF
+        
+        # 使用正则表达式一次性过滤所有无效字符
+        pattern = r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x84\x86-\x9f\ufff0-\uffff\uff80-\uffbf\ufffe\uffff]'
+        result = re.sub(pattern, '', text)
+        
+        return result
+    
+    @staticmethod
+    def _clean_xml_content(content: str) -> str:
+        """清理XML内容，移除无效字符但不修改原文件"""
+        # 移除BOM字符
+        if content.startswith('\ufeff'):
+            content = content[1:]
+        
+        # 首先整体过滤一遍无效字符
+        content = RobustXMLParser._filter_invalid_chars(content)
+        
+        # 逐行处理和清理（额外保险）
+        lines = content.split('\n')
+        cleaned_lines = []
+        
+        for line in lines:
+            # 对每一行再次进行字符过滤（双重保险）
+            cleaned_line = RobustXMLParser._filter_invalid_chars(line)
+            cleaned_lines.append(cleaned_line)
+        
+        return '\n'.join(cleaned_lines)
+    
+    @staticmethod
+    def _sanitize_xml_content(content: str) -> str:
+        """增强版XML内容清理，专门处理ScenarioProperties.xml等复杂文件"""
+        # 移除BOM字符
+        if content.startswith('\ufeff'):
+            content = content[1:]
+        
+        # 分阶段清理
+        # 阶段1：整体字符过滤
+        content = RobustXMLParser._filter_invalid_chars(content)
+        
+        # 阶段2：专门处理内联无效字符（某些场景名称中可能包含）
+        # 特别针对包含私有区字符的文本内容
+        import re
+        
+        # 查找并替换<Name>标签内的无效字符
+        name_pattern = r'(<Name[^>]*>)(.*?)(</Name>)'
+        def clean_name_content(match):
+            prefix = match.group(1)
+            name_content = match.group(2) 
+            suffix = match.group(3)
+            
+            # 清理名称内容中的无效字符
+            cleaned_name = RobustXMLParser._filter_invalid_chars(name_content)
+            return prefix + cleaned_name + suffix
+        
+        content = re.sub(name_pattern, clean_name_content, content, flags=re.DOTALL)
+        
+        # 阶段3：查找并清理任何残留的私有区字符
+        # 匹配任何包含私有区Unicode字符的内容
+        private_char_pattern = r'[\ufff0-\uffff\uff80-\uffbf]'
+        content = re.sub(private_char_pattern, '', content)
+        
+        # 阶段4：最后整体清理一遍
+        content = RobustXMLParser._filter_invalid_chars(content)
+        
+        return content
     
     @staticmethod
     def _is_chinese_language(lang_code: str) -> bool:
@@ -126,38 +207,36 @@ class XMLParser:
         
         # 如果目标语言是中文，匹配所有中文变体
         if target_language.lower() == 'zh':
-            return XMLParser._is_chinese_language(lang_code)
+            return RobustXMLParser._is_chinese_language(lang_code)
         
         # 其他语言精确匹配
         return lang_code.lower() == target_language.lower()
 
     @staticmethod
     def parse_display_name(xml_file_path: str, language: str = "zh") -> str:
-        """解析DisplayName标签，获取显示名称"""
+        """解析DisplayName标签，获取显示名称（动态过滤无效字符）"""
         try:
             if not os.path.exists(xml_file_path):
                 return ""
             
-            # 读取XML文件内容
+            # 读取XML文件内容（不修改原文件）
             with open(xml_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            # 解析XML
-            root = ET.fromstring(content)
+            # 使用增强版清理XML内容（专门处理ScenarioProperties.xml等复杂文件）
+            cleaned_content = RobustXMLParser._sanitize_xml_content(content)
             
-            # 简化查找：直接使用简单的xpath查找
-            # 不使用命名空间前缀，而是直接匹配标签名
+            # 解析清理后的XML
+            root = ET.fromstring(cleaned_content)
             
             # 查找DisplayName节点
             display_name_node = root.find('.//DisplayName')
             if display_name_node is None:
-                print(f"在 {xml_file_path} 中未找到DisplayName节点")
                 return ""
             
             # 查找Localisation节点
             localisation_node = display_name_node.find('.//Localisation-cUserLocalisedString')
             if localisation_node is None:
-                print(f"在 {xml_file_path} 中未找到Localisation-cUserLocalisedString节点")
                 return ""
             
             # 首先尝试Other语言 - 支持所有中文变体
@@ -169,8 +248,10 @@ class XMLParser:
                     string_node = string_pair.find('.//String')
                     
                     if (lang_node is not None and string_node is not None and
-                        string_node.text and XMLParser._matches_language(lang_node.text, language)):
-                        return string_node.text
+                        string_node.text and RobustXMLParser._matches_language(lang_node.text, language)):
+                        # 对解析出的文本再次进行字符过滤
+                        result_text = RobustXMLParser._filter_invalid_chars(string_node.text)
+                        return result_text.strip()
             
             # 如果Other中没有找到，尝试其他语言
             languages = ['English', 'French', 'German', 'Spanish', 'Italian', 'Russian', 'Dutch', 'Polish']
@@ -178,13 +259,25 @@ class XMLParser:
                 lang_node = localisation_node.find(f'.//{lang}')
                 if (lang_node is not None and lang_node.text and 
                     lang_node.get('d:type') == 'cDeltaString'):
-                    return lang_node.text
+                    # 对解析出的文本再次进行字符过滤
+                    result_text = RobustXMLParser._filter_invalid_chars(lang_node.text)
+                    return result_text.strip()
             
             # 尝试不带d:type检查的回退
             for lang in languages:
                 lang_node = localisation_node.find(f'.//{lang}')
                 if (lang_node is not None and lang_node.text):
-                    return lang_node.text
+                    # 对解析出的文本再次进行字符过滤
+                    result_text = RobustXMLParser._filter_invalid_chars(lang_node.text)
+                    return result_text.strip()
+            
+            # 额外的回退机制：直接查找任何非空的String节点
+            for string_node in localisation_node.findall('.//String'):
+                if string_node.text and string_node.text.strip():
+                    # 对解析出的文本进行字符过滤
+                    result_text = RobustXMLParser._filter_invalid_chars(string_node.text)
+                    if result_text.strip():
+                        return result_text.strip()
             
             return ""
             
@@ -201,7 +294,7 @@ class TrainSimulatorBackupTool:
     
     def __init__(self):
         self.config_manager = ConfigManager()
-        self.xml_parser = XMLParser()
+        self.xml_parser = RobustXMLParser()
         self.routes_data = {}  # 存储路线和场景数据
         self.backup_dir_name = "saves"
         
@@ -271,14 +364,14 @@ class TrainSimulatorBackupTool:
         try:
             for route_uuid in os.listdir(routes_path):
                 route_path = os.path.join(routes_path, route_uuid)
-                if not os.path.isdir(route_path):  # 修正：使用完整路径而不是文件夹名
+                if not os.path.isdir(route_path):
                     continue
                 
                 # 解析路线名称
                 route_properties_path = os.path.join(route_path, "RouteProperties.xml")
                 route_name = self.xml_parser.parse_display_name(route_properties_path, language)
                 if not route_name:
-                    route_name = route_uuid  # 如果解析失败，使用UUID作为名称
+                    route_name = route_uuid
                 
                 # 扫描场景
                 scenarios_path = os.path.join(route_path, "Scenarios")
@@ -294,7 +387,7 @@ class TrainSimulatorBackupTool:
                         scenario_properties_path = os.path.join(scenario_path, "ScenarioProperties.xml")
                         scenario_name = self.xml_parser.parse_display_name(scenario_properties_path, language)
                         if not scenario_name:
-                            scenario_name = scenario_uuid  # 如果解析失败，使用UUID作为名称
+                            scenario_name = scenario_uuid
                         
                         scenarios.append({
                             'uuid': scenario_uuid,
@@ -303,7 +396,7 @@ class TrainSimulatorBackupTool:
                             'save_path': os.path.join(scenario_path, self.backup_dir_name)
                         })
                 
-                if scenarios:  # 只添加有场景的路线
+                if scenarios:
                     self.routes_data[route_uuid] = {
                         'name': route_name,
                         'path': route_path,
@@ -317,10 +410,7 @@ class TrainSimulatorBackupTool:
             return False
     
     def create_backup(self, scenario_path: str, custom_filename: str = None) -> tuple[bool, str]:
-        """创建存档备份
-        Returns:
-            (success: bool, error_message: str)
-        """
+        """创建存档备份"""
         try:
             save_file = os.path.join(scenario_path, "CurrentSave.bin")
             if not os.path.exists(save_file):
@@ -330,30 +420,23 @@ class TrainSimulatorBackupTool:
             if not os.path.exists(backup_dir):
                 os.makedirs(backup_dir)
             
-            # 使用自定义文件名或生成默认文件名
             if custom_filename:
-                # 确保文件名以.bin结尾
                 if not custom_filename.endswith('.bin'):
                     custom_filename += '.bin'
                 backup_file = custom_filename
             else:
-                # 生成默认文件名
                 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
                 backup_file = f"CurrentSave-{timestamp}.bin"
             
             backup_path = os.path.join(backup_dir, backup_file)
             
-            # 检查文件是否已存在
             if os.path.exists(backup_path):
                 return False, f"备份文件 '{backup_file}' 已存在，请使用不同的名称"
             
-            # 复制存档文件
             shutil.copy2(save_file, backup_path)
             
-            # 复制MD5校验文件（如果存在）
             md5_file = os.path.join(scenario_path, "CurrentSave.bin.MD5")
             if os.path.exists(md5_file):
-                # MD5文件名与存档文件名保持一致（只改扩展名）
                 md5_backup_file = backup_file + ".MD5" if not backup_file.endswith('.MD5') else backup_file
                 backup_md5_path = os.path.join(backup_dir, md5_backup_file)
                 shutil.copy2(md5_file, backup_md5_path)
@@ -371,11 +454,8 @@ class TrainSimulatorBackupTool:
                 return False
             
             save_file = os.path.join(scenario_path, "CurrentSave.bin")
-            
-            # 复制备份文件覆盖原存档
             shutil.copy2(backup_path, save_file)
             
-            # 还原MD5校验文件（如果存在）
             md5_filename = backup_filename + ".MD5"
             backup_md5_path = os.path.join(scenario_path, self.backup_dir_name, md5_filename)
             if os.path.exists(backup_md5_path):
@@ -394,12 +474,10 @@ class TrainSimulatorBackupTool:
             backup_path = os.path.join(scenario_path, self.backup_dir_name, backup_filename)
             deleted = False
             
-            # 删除存档文件
             if os.path.exists(backup_path):
                 os.remove(backup_path)
                 deleted = True
             
-            # 删除对应的MD5校验文件
             md5_filename = backup_filename + ".MD5"
             backup_md5_path = os.path.join(scenario_path, self.backup_dir_name, md5_filename)
             if os.path.exists(backup_md5_path):
@@ -419,17 +497,15 @@ class TrainSimulatorBackupTool:
             return []
         
         backups = []
-        backup_sets = set()  # 用于跟踪已处理的备份集
+        backup_sets = set()
         try:
             for filename in os.listdir(backup_dir):
-                # 识别任何以.bin结尾的文件作为备份文件
                 if filename.endswith(".bin") and not filename.endswith(".bin.MD5"):
-                    # 提取备份集标识（移除.bin后缀）
-                    backup_id = filename[:-4]  # 移除.bin
+                    backup_id = filename[:-4]
                     if backup_id not in backup_sets:
                         backup_sets.add(backup_id)
                         backups.append(backup_id)
-            backups.sort(reverse=True)  # 最新的在前面
+            backups.sort(reverse=True)
         except Exception as e:
             print(f"列出备份失败: {e}")
         
@@ -531,7 +607,8 @@ if PYQT_VERSION in [5, 6]:
             splitter.addWidget(right_widget)
             
             # 设置分割器比例
-            splitter.setSizes([400, 600])
+            splitter.setSizes([600, 360])
+            splitter.setChildrenCollapsible(False)
             
             # 菜单栏
             self.create_menu_bar()
@@ -642,8 +719,6 @@ if PYQT_VERSION in [5, 6]:
                     route_item.addChild(scenario_item)
                 
                 self.route_tree.addTopLevelItem(route_item)
-            
-            # 不自动展开，让用户手动点击展开路线
         
         def on_item_selection_changed(self):
             """项目选择变化处理"""
@@ -731,7 +806,6 @@ if PYQT_VERSION in [5, 6]:
                 # 如果路线名称匹配，显示整个路线
                 if search_text in route_name:
                     route_item.setHidden(False)
-                    # 不自动展开，让用户手动点击
                     
                     # 检查并显示匹配的场景
                     scenario_count = min(route_item.childCount(), 20)  # 限制每个路线最多20个场景
@@ -942,7 +1016,7 @@ elif PYGTK_AVAILABLE:
             left_box.pack_start(route_label, False, False, 0)
             
             self.route_tree = Gtk.TreeView()
-            left_box.pack_start(self.tree_store, True, True, 0)
+            left_box.pack_start(self.route_tree, True, True, 0)
             
             # 右侧：备份管理
             right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
@@ -999,8 +1073,8 @@ def main():
     # 设置应用程序信息
     if PYQT_VERSION == 5:
         app.setApplicationName("Train Simulator Classic Backup Tool")
-        app.setApplicationVersion("1.0.0")
-        app.setOrganizationName("MiniMax Agent")
+        app.setApplicationVersion("1.4.0")
+        app.setOrganizationName("xc1984759471")
     else:  # PyQt6
         app.setApplicationName("Train Simulator Classic Backup Tool")
         app.setApplicationDisplayName("Train Simulator Classic Backup Tool")
