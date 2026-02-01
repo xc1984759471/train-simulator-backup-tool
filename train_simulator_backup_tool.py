@@ -6,6 +6,7 @@ import sys
 import shutil
 import json
 import re
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -574,8 +575,53 @@ if PYQT_VERSION in [5, 6]:
             self.scenario_name_label = QLabel("未选择场景")
             scenario_layout.addRow("当前场景:", self.scenario_name_label)
             
-            self.scenario_path_label = QLabel("")
-            scenario_layout.addRow("路径:", self.scenario_path_label)
+            # 路径行布局（包含路径和打开按钮）
+            path_widget = QWidget()
+            path_layout = QHBoxLayout(path_widget)
+            path_layout.setContentsMargins(0, 0, 0, 0)
+            
+            # 使用QLineEdit作为隐形文本框
+            self.scenario_path_edit = QLineEdit()
+            self.scenario_path_edit.setReadOnly(True)  # 禁止编辑
+            self.scenario_path_edit.setCursor(Qt.ArrowCursor)  # 默认箭头光标
+            # QLineEdit在只读模式下默认支持文本选择，无需额外设置
+            
+            # 设置真正的隐形文本框样式 - 绝对不能显示边框和背景
+            self.scenario_path_edit.setStyleSheet("""
+                QLineEdit {
+                    border: none;
+                    background-color: transparent;
+                    padding: 0px;
+                    margin: 0px;
+                    font-size: 12px;
+                    color: #333333;
+                    outline: none;
+                    selection-background-color: #0078d4;
+                    selection-color: white;
+                }
+                QLineEdit:focus {
+                    border: none;
+                    background-color: transparent;
+                    outline: none;
+                }
+                QLineEdit:pressed {
+                    border: none;
+                    background-color: transparent;
+                    outline: none;
+                }
+                QLineEdit:hover {
+                    border: none;
+                    background-color: transparent;
+                    outline: none;
+                }
+            """)
+            
+            self.open_path_button = QPushButton("打开")
+            
+            path_layout.addWidget(self.scenario_path_edit, 1)  # 1表示拉伸
+            path_layout.addWidget(self.open_path_button)
+            
+            scenario_layout.addRow("路径:", path_widget)
             
             right_layout.addWidget(scenario_group)
             
@@ -596,6 +642,9 @@ if PYQT_VERSION in [5, 6]:
             self.backup_button.setEnabled(False)
             self.restore_button.setEnabled(False)
             self.delete_button.setEnabled(False)
+            
+            # 设置打开路径按钮初始状态
+            self.open_path_button.setEnabled(False)
             
             button_layout.addWidget(self.backup_button)
             button_layout.addWidget(self.restore_button)
@@ -649,6 +698,7 @@ if PYQT_VERSION in [5, 6]:
             self.backup_button.clicked.connect(self.create_backup)
             self.restore_button.clicked.connect(self.restore_backup)
             self.delete_button.clicked.connect(self.delete_backup)
+            self.open_path_button.clicked.connect(self.open_scenario_path)
             
             # 搜索框信号连接
             self.search_input.textChanged.connect(self.on_search_text_changed)
@@ -724,10 +774,12 @@ if PYQT_VERSION in [5, 6]:
             """项目选择变化处理"""
             current_item = self.route_tree.currentItem()
             if not current_item:
+                self.reset_ui_state()
                 return
             
             data = current_item.data(0, Qt.UserRole)
             if not data or data['type'] != 'scenario':
+                self.reset_ui_state()
                 return
             
             # 更新场景信息
@@ -735,7 +787,8 @@ if PYQT_VERSION in [5, 6]:
             scenario_name = current_item.text(0)
             
             self.scenario_name_label.setText(scenario_name)
-            self.scenario_path_label.setText(scenario_path)
+            # 直接显示完整路径，文本框会自动处理长文本
+            self.scenario_path_edit.setText(scenario_path)
             
             # 更新备份列表
             self.update_backup_list(scenario_path)
@@ -744,6 +797,17 @@ if PYQT_VERSION in [5, 6]:
             self.backup_button.setEnabled(True)
             self.restore_button.setEnabled(False)
             self.delete_button.setEnabled(False)
+            self.open_path_button.setEnabled(True)
+        
+        def reset_ui_state(self):
+            """重置UI状态到默认状态"""
+            self.scenario_name_label.setText("未选择场景")
+            self.scenario_path_edit.setText("")
+            self.backup_button.setEnabled(False)
+            self.restore_button.setEnabled(False)
+            self.delete_button.setEnabled(False)
+            self.open_path_button.setEnabled(False)
+            self.backup_list.clear()
         
         def update_backup_list(self, scenario_path: str):
             """更新备份列表"""
@@ -986,6 +1050,88 @@ if PYQT_VERSION in [5, 6]:
                     self.statusBar().showMessage(f"备份 '{backup_display}' 删除成功")
                 else:
                     QMessageBox.warning(self, "失败", "备份删除失败！")
+        
+        def open_scenario_path(self):
+            """打开场景路径 - 使用界面显示的确切路径"""
+            # 直接使用界面上显示的路径文本
+            displayed_path = self.scenario_path_edit.text()
+            
+            # 详细调试信息
+            print(f"=== 打开路径调试信息 ===")
+            print(f"界面显示的路径: '{displayed_path}'")
+            print(f"路径类型: {type(displayed_path)}")
+            print(f"路径长度: {len(displayed_path)}")
+            
+            # 验证路径
+            if not displayed_path or displayed_path == "":
+                QMessageBox.warning(self, "错误", "未选择场景或路径为空！")
+                return
+            
+            # 检查路径是否存在
+            if not os.path.exists(displayed_path):
+                QMessageBox.warning(self, "错误", f"路径不存在！\n路径: {displayed_path}")
+                print(f"路径不存在检查:")
+                print(f"  绝对路径: {os.path.abspath(displayed_path)}")
+                print(f"  绝对路径存在: {os.path.exists(os.path.abspath(displayed_path))}")
+                return
+            
+            if not os.path.isdir(displayed_path):
+                QMessageBox.warning(self, "错误", f"路径不是有效的目录！\n路径: {displayed_path}")
+                return
+            
+            print(f"路径验证通过，准备打开: {displayed_path}")
+            
+            try:
+                if os.name == 'nt':  # Windows系统
+                    print("尝试Windows explorer方法...")
+                    
+                    # 方法1: 使用os.startfile (Windows专用，最可靠)
+                    try:
+                        print("方法1: os.startfile(displayed_path)")
+                        os.startfile(displayed_path)
+                        print("✓ 方法1成功")
+                        folder_name = os.path.basename(displayed_path) if displayed_path else "未知文件夹"
+                        self.statusBar().showMessage(f"已打开: {folder_name}")
+                        return
+                    except Exception as e1:
+                        print(f"✗ 方法1失败: {e1}")
+                    
+                    # 方法2: 直接使用explorer命令
+                    try:
+                        print("方法2: subprocess.Popen(['explorer', displayed_path])")
+                        subprocess.Popen(['explorer', displayed_path])
+                        print("✓ 方法2成功")
+                        folder_name = os.path.basename(displayed_path) if displayed_path else "未知文件夹"
+                        self.statusBar().showMessage(f"已打开: {folder_name}")
+                        return
+                    except Exception as e2:
+                        print(f"✗ 方法2失败: {e2}")
+                    
+                    # 方法3: 使用shell=True
+                    try:
+                        print("方法3: subprocess.Popen with shell=True")
+                        subprocess.Popen(f'explorer "{displayed_path}"', shell=True)
+                        print("✓ 方法3成功")
+                        folder_name = os.path.basename(displayed_path) if displayed_path else "未知文件夹"
+                        self.statusBar().showMessage(f"已打开: {folder_name}")
+                        return
+                    except Exception as e3:
+                        print(f"✗ 方法3失败: {e3}")
+                    
+                    # 所有方法都失败
+                    QMessageBox.warning(self, "错误", f"所有打开方法都失败了！\n路径: {displayed_path}")
+                    
+                else:
+                    # 其他系统的备用方案
+                    subprocess.Popen(['xdg-open', displayed_path])
+                    folder_name = os.path.basename(displayed_path) if displayed_path else "未知文件夹"
+                    self.statusBar().showMessage(f"已打开: {folder_name}")
+                    print("使用xdg-open打开")
+                        
+            except Exception as e:
+                error_msg = f"打开路径失败: {e}\n路径: {displayed_path}"
+                print(error_msg)
+                QMessageBox.warning(self, "错误", error_msg)
 
 
 # GTK GUI实现（备用）
